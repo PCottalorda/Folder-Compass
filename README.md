@@ -1,2 +1,2 @@
 # Folder-Compass
-WARNING ALPHA : 
+WARNING ALPHA
