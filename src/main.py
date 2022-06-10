@@ -1,10 +1,11 @@
+from ast import Call
 from dataclasses import dataclass
 from importlib.metadata import files
 from importlib.resources import path
 from pathlib import Path
 import re
 from datetime import datetime
-from typing import Iterator, List, Optional, TypeVar, Callable
+from typing import Generic, Iterator, List, Optional, TypeVar, Callable
 
 '''
 Terminology :
@@ -40,8 +41,8 @@ class ConflictData :
         stem_regex = r'/(?P<conflict_source>.*) \(conflict (?P<date>\d\d\d\d-\d\d-\d\d-\d\d-\d\d-\d\d)\)$'
         conflict_data = re.match(stem_regex, stem)
         if conflict_data :
-            return ConflictData( original_path = conflict_data.group('conflict_source') + suffix
-                               , conflict_path = stem + suffix
+            return ConflictData( original_path = Path(conflict_data.group('conflict_source') + suffix)
+                               , conflict_path = Path(stem + suffix)
                                , conflict_date = datetime.strptime(conflict_data.group('conflict_date'), '%Y-%m-%d-%H-%M-%S')
                                )
         return None
@@ -64,7 +65,7 @@ class FolderContentIterator :
             try :
                 return self.iter_files.__next__().path
             except StopIteration :
-                self.iter_files = False
+                self.on_files = False
                 return self.__next__()
         else :
             return self.iter_folders.__next__().path
@@ -76,7 +77,7 @@ class FolderContent :
     folders : List[FolderPath]
 
 def children(folder_path : FolderPath) -> List[Path] :
-    return list([folder_path.path/x for x in folder_path.iterdir()])
+    return list([folder_path.path/x for x in folder_path.path.iterdir()])
 
 def content(folder_path : FolderPath) -> FolderContent :
     content = FolderContent(folder_path, [], [])
@@ -94,10 +95,45 @@ class RecursiveFolderContent :
     path    : FolderPath
     files   : List[FilePath]
 
+T = TypeVar('T')
+U = TypeVar('U')
+
+# @dataclass
+# class ExtendCurry(Generic[T, U]) :
+#     f : Callable[[T], U]
+#     x : T
+# 
+#     def __call__(self) -> U:
+#         return self.f(self.x)
+
+@dataclass
+class LazyExtend(Generic[T, U]) :
+    f : Callable[['Lazy[T]'], U]
+
+    def __call__(self, l : 'Lazy[T]') -> 'Lazy[U]':
+        return Lazy[U](lambda : self.f(l))
+
+class LazyPolicy :
+    @staticmethod
+    def extract(l : 'Lazy[T]') -> T :
+        return l()
+
+    @staticmethod
+    def duplicate(l : 'Lazy[T]') -> 'Lazy[Lazy[T]]' :
+        return Lazy[Lazy[T]](lambda : l)
+    
+    @staticmethod
+    def extend(f : Callable[['Lazy[T]'], U]) -> Callable[['Lazy[T]'], 'Lazy[U]'] :
+        return LazyExtend[T, U](f)
 
 
+@dataclass
+class Lazy(Generic[T]) :
+    f : Callable[[], T]
 
-        
+    def __call__(self) -> T:
+        return self.f()     
+
 
 
 
